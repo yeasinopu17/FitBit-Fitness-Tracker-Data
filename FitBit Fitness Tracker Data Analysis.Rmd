@@ -9,6 +9,8 @@ output: html_document
 
 [Click Here](https://www.kaggle.com/arashnic/fitbit) to Download **FitBit Fitness Tracker Data**
 
+**See My FitBit Fitness Tracker Data Analysis in kaggle** [Click Here](https://www.kaggle.com/yeasinopu/fitbit-fitness-tracker-data)
+
 This is a data analytics fictional case study with the purpose of gaining insights to improve business decisions for the Bellabeat company, a company focused on building products designed to gather information about a woman's overall activity, sleep schedules, stress and reproductive health.
 
 This analysis follows the same structure that was learned throughout this course, which is the following:
@@ -199,10 +201,118 @@ Let's now look at the actual behaviours of our costumers. We can analyse their s
 #### 1. Sleep behaviours
 ```{r}
 ggplot(mergeActivity, aes(x=TotalMinutesAsleep)) + 
-    geom_histogram(aes(y=..density..) ,binwidth = 30, alpha = 0.6) +
+    geom_histogram(aes(y=..density..) ,binwidth = 30, alpha = 0.6, color = "red") +
     geom_density(alpha = 0.2, fill="blue") +
     labs(title = "Total Minute Asleep")
 ```
 
 From this histogram, we can see that most of the costumers sleep around 420 minutes which equals to 7 hours a day.
 
+```{r}
+ggplot(mergeActivity, aes(x=TimeAwakeInBed)) + 
+    geom_histogram(aes(y=..density..), binwidth = 30, alpha = 0.6, color = "red") +
+    geom_density(fill= "blue", alpha = 0.2) +
+    geom_vline(aes(xintercept = mean(TimeAwakeInBed)), color="green", linetype = "dashed") +
+    geom_vline(aes(xintercept = max(TimeAwakeInBed)), color="green", linetype = "dashed") +
+    annotate(geom = "text", x = 39 + 45, y = 0.02, label = "Mean = 39", size = 5) +
+    annotate(geom = "text", x = 371 - 30, y = 0.02, label = "Max = 371", size = 5 ) +
+    labs(x = "Time Awake in Bed", y = "Density")
+```
+
+Using the same type of visualization, and using our calculated field TimeAwakeInBed, we can see if the costumers are spending too much time awake in bed or not, which could be a signal of bad sleeping habits. In the histogram, we see that most costumers have an average time of 39 minutes awake in bed, which is not particularly bad, but could be improved. Also, there's still a small amount of costumers that are awake between 100 and 300 minutes, and the maximum being 371 minutes! Will leave further comments regarding this subject in the Share phase.
+
+#### Most frequent types of activities
+For this analysis, we'll construct a data frame where for each date (or day) we'll measure the mean for each activity, then plotting these measurments using lines with different colors.
+
+```{r}
+activitySummary <- mergeActivity %>% group_by(Date) %>%
+    summarise(Mean_VeryActiveMinutes = mean(VeryActiveMinutes),
+              Mean_FairlyActiveMinutes = mean(FairlyActiveMinutes),
+              Mean_LightlyActiveMinutes = mean(LightlyActiveMinutes),
+              Mean_SedentaryMinutes = mean(SedentaryMinutes)) %>%
+    arrange(Date)
+cols <- c("Very" = "violetred3", "Fairly" = "black", "Lightly" = "orange", "Sedentary" = "red")
+ggplot(data = activitySummary, aes(x=Date)) +
+    geom_line(aes(y=Mean_VeryActiveMinutes, color = "Very"), size = 1) +
+    geom_line(aes(y=Mean_FairlyActiveMinutes, color = "Fairly"), size = 1) +
+    geom_line(aes(y=Mean_LightlyActiveMinutes, color = "Lightly"), size = 1) +
+    geom_line(aes(y=Mean_SedentaryMinutes, color = "Sedentary"), size = 1) +
+    labs(title = "Most Frequent Types of Activity", y = "Minutes (mean)", color = "Activity") +
+    scale_color_manual(values = cols)
+    
+    
+```
+
+From the chart above, we can see that most of the activity is of Sedentary type, then Light activity, and finally the least amount are Very active and Fairly active. Nowadays, most people spend alot of their day working sitting on a chair, which may explain why most of the activity is Sedentary, and the Lightly activity being from simply doing diverse types of chores.
+
+#### Days of the week with most activity
+To analyse the most activity per weekday, we can do something similar as we did for the previous data frame (activityByDate) but this time grouping by weekday using the weekdays function.
+```{r}
+activityByweekDay <- mergeActivity %>% group_by(weekday = weekdays(Date, abbreviate = T)) %>%
+    summarise(Very = mean(VeryActiveMinutes),
+              Fairly = mean(FairlyActiveMinutes),
+              Lightly = mean(LightlyActiveMinutes),
+              Sedentary = mean(SedentaryMinutes)) %>% 
+    pivot_longer( cols = Very:Sedentary, names_to = "Activity", values_to = "Mean")
+activityByweekDay$weekday <- factor(activityByweekDay$weekday, levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+head(activityByweekDay,5)
+
+#plotting
+ggplot(activityByweekDay, aes(x= weekday, y = Mean, fill = Activity)) +
+    geom_bar(position = "dodge", stat = "identity") + # stat = "identity" important if i use geom_col() function then no need to use stat param
+    labs(title = "Activity per weekday")
+```
+
+Not much we can take from this chart since it's relatively well distributed, simply that Sedentary type of activity is more frequent on Fridays and Tuesdays. Lightly activity on Saturdays and Fridays. Fairly and Very are a bit hard to distinguish, so we'll filter those and plot again:
+
+```{r}
+activityByweekDay %>%
+    filter(Activity == "Very" | Activity == "Fairly") %>%
+    ggplot(aes(x= weekday, y = Mean, fill = Activity)) +
+    geom_bar(position = "dodge", stat = "identity") + # stat = "identity" important if i use geom_col() function then no need to use stat param
+    labs(title = "Activity per weekday Of Fairly & Very")
+```
+
+Fairly activity is more frequent on Mondays and Tuesdays, while Very activity is more frequent on Saturdays and Tuesdays.
+
+#### Relationship between sleep and activity.
+For this analysis, we'll try to see if there's any correlation between the sleep and activity.
+```{r}
+ggplot(data = mergeActivity) + 
+    geom_point(mapping = aes(x = TotalMinutesAsleep, y = TotalSteps, size = Calories, color = Calories)) + # aes here must imp
+    geom_smooth(formula = y ~ x, method=lm, mapping = aes(x = TotalMinutesAsleep, y = TotalSteps), color = "red") +
+    labs(title = "Sleep and Activity", x = "Total Minutes Asleep", y = "Total Steps")
+
+```
+
+Apparently, it's more likely for our costumers to do more activity if they slept less than usual, rather than more. As noted in the previous analysis of sleep behaviours, most of the costumers have relatively good sleep (420 minutes = 7 hours).
+
+# Share
+In the Share phase, the key tasks include determining the best way to share our findings in the analysis, create effective visualizations, present the findings and ensure the work is accessible. This step consists essentially in telling a compelling story about our data that hopefully answers the initial business tasks. Since the visualizations were already been presented while doing the analysis phase, we'll now present the final recomendations and summary of our findings.
+
+Let's first recall the three business tasks:
+
+1. What are some trends in smart device usage?
+2. How could these trends apply to Bellabeat customers?
+3. How could these trends help influence Bellabeat marketing strategy?
+
+The insights gathered from our analysis:
+
+- Missing records: On the prepare and analysis phase, we noticed that there were 33 distinct costumers registries on the dailyActivity_merged.csv file, 24 distinct costumers on the sleepDay_merged.csv file and only 9 distinct costumers on the weightLogInfo_merged.csv file. This can be an indicator that the costumers are not registring sleep data and weight data. Therefore, we proceed only with the files dailyActivity and sleepDay, which, when merged, would leave us with 24 costumers data. The fact that there's not enough sleep data could mean that the costumers simply don't use the device while sleeping. Setting daily reminders or rewards for registering weight data and making a more confortable device to use during sleep could be a way to boost these recordings and thus use this data to improve costumers overall life/activity.
+
+- Sleep behaviours: As seen on the analysis phase, most of our costumers have relatively good amount of sleep, with an average of 420 minutes per day which equals to 7 hours. However, they also spend a slightly high amount of time awake in bed, 39 minutes on average, and a less amount of costumers spend between 100 minutes and 300 minutes. Having a 39 minutes average of time awake in bed might not be something serious to consider, since it's not a very high number and it may be the case that some people simply like to read while on the bed, but it could be an indicator that some costumers have trouble falling asleep or poor sleeping habits. Additionally, looking into the relationship between the amount of sleep and activity made for a particular day, led us to the conclusion that it's more likely for our costumers to do more activity if they slept less than usual, rather than more. It is not a very relevant insight but what we can get from this whole sleep behaviour analysis is that dedicated sleeping features integrated on the app could help improve the sleeping habbits of our costumers and so improve overall activity and life.
+
+- Activity frequency: We also noticed that, from the four types of activity (Sedentary > Lightly > Fairly > Very), the most frequent types were either Sedentary or Light. Most of the people spend their entire day working on a chair (Sedentary) and do some small chores either inside or outside their house (Lightly), which could be the reason why these activities are more frequent. Although the frequency of Fairly and Very activity is much lower than the Sedentary and Lightly, if we take a look to the filtered graph (containing only Fairly and Very) we see that the average per weekday is not that low considering that these activities might include intensive exercises, so spending on average 25 minutes doing those type of exercises is not particurlaly bad but could be improved. Perhaps the possibility for the costumers to set daily goals combined with motivational reminders/notifications would be a good way for them to boost the frequency of these higher intensive activities.
+
+The first two business questions are answered by these three insights, leaving us with the final third: How could these trends help influence Bellabeat marketing strategy? In short and generally speaking, a typical costumer from this analysis is someone who:
+
+- Doesn't reguraly register weight or sleep data (registries of weight may be manual, and sleep autonomous).
+- Have a relatively good amount of sleep (7h), but may spend some time awake in bed (40m).
+- Does intensive activities, but not for too long.
+Based on these criteria, the development team should first approach the resolution/improvement of these points and then the marketing team could focus on targeting people who may have a similar activity patterns in order to improve their overall quality of life.
+
+# Act
+In this phase, we take into consideration all the insights gathered and make a business decision based on our findings. The recommendations were presented in the previous phase and is thus now up to the stakeholders to make the desired decision. In this section we can also discuss possible data sets that could be used to expand this analysis for any future reference, as for example:
+
+- This dataset contains more than 4 years of steps and sleep data (also using a band).
+- This dataset contains plenty of records regarding sleep activity.
